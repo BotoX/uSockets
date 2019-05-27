@@ -48,7 +48,9 @@ enum {
     /* No meaning, default listen option */
     LIBUS_LISTEN_DEFAULT,
     /* We exclusively own this port, do not share it */
-    LIBUS_LISTEN_EXCLUSIVE_PORT
+    LIBUS_LISTEN_EXCLUSIVE_PORT,
+    /* Listen on UDP instead of TCP */
+    LIBUS_LISTEN_UDP
 };
 
 /* Library types publicly available */
@@ -119,6 +121,8 @@ WIN32_EXPORT void us_socket_context_on_timeout(int ssl, struct us_socket_context
 /* This one is only used for when a connecting socket fails in a late stage. */
 WIN32_EXPORT void us_socket_context_on_connect_error(int ssl, struct us_socket_context_t *context,
     struct us_socket_t *(*on_connect_error)(struct us_socket_t *s, int code));
+WIN32_EXPORT void us_socket_context_on_udp_recv(struct us_socket_context_t *context,
+    void (*on_udp_recv)(struct us_socket_t *s, char *data, int length, char *addr, int addr_length));
 
 /* Emitted when a socket has been half-closed */
 WIN32_EXPORT void us_socket_context_on_end(int ssl, struct us_socket_context_t *context, struct us_socket_t *(*on_end)(struct us_socket_t *s));
@@ -220,6 +224,8 @@ WIN32_EXPORT void *us_socket_get_native_handle(int ssl, struct us_socket_t *s);
  * Will call the on_writable callback of active socket context on failure to write everything off in one go.
  * Set hint msg_more if you have more immediate data to write. */
 WIN32_EXPORT int us_socket_write(int ssl, struct us_socket_t *s, const char *data, int length, int msg_more);
+
+WIN32_EXPORT int us_socket_sendto(struct us_socket_t *s, const char *data, int length, char *addr, int addr_length);
 
 /* Set a low precision, high performance timer on a socket. A socket can only have one single active timer
  * at any given point in time. Will remove any such pre set timer */

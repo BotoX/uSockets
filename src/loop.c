@@ -85,11 +85,11 @@ void us_internal_timer_sweep(struct us_loop_t *loop) {
 
         struct us_socket_context_t *context = loop_data->iterator;
 
-        /* Update this context's 15-bit timestamp */
-        context->timestamp = (context->timestamp + 1) & 0x7fff;
+        /* Update this context's 14-bit timestamp */
+        context->timestamp = (context->timestamp + 1) & 0x3fff;
 
-        /* Update our 16-bit full timestamp (the needle in the haystack) */
-        unsigned short needle = 0x8000 | context->timestamp;
+        /* Update our 15-bit full timestamp (the needle in the haystack) */
+        unsigned short needle = 0x4000 | context->timestamp;
 
         /* Begin at head */
         struct us_socket_t *s = context->head;
@@ -200,36 +200,42 @@ void us_internal_dispatch_ready_poll(struct us_poll_t *p, int error, int events)
                 struct us_listen_socket_t *listen_socket = (struct us_listen_socket_t *) p;
                 struct bsd_addr_t addr;
 
-                LIBUS_SOCKET_DESCRIPTOR client_fd = bsd_accept_socket(us_poll_fd(p), &addr);
-                if (client_fd == LIBUS_SOCKET_ERROR) {
-                    /* Todo: start timer here */
-
+                if(listen_socket->s.udp) {
+                    struct us_socket_t *s = &listen_socket->s;
+                    int length = bsd_recvfrom(us_poll_fd(&s->p), s->context->loop->data.recv_buf + LIBUS_RECV_BUFFER_PADDING, LIBUS_RECV_BUFFER_LENGTH, 0, &addr);
+                    s->context->on_udp_recv(s, s->context->loop->data.recv_buf + LIBUS_RECV_BUFFER_PADDING, length, (char *)&addr.mem, addr.len);
                 } else {
+                    LIBUS_SOCKET_DESCRIPTOR client_fd = bsd_accept_socket(us_poll_fd(p), &addr);
+                    if (client_fd == LIBUS_SOCKET_ERROR) {
+                        /* Todo: start timer here */
 
-                    /* Todo: stop timer if any */
+                    } else {
 
-                    do {
-                        struct us_poll_t *accepted_p = us_create_poll(us_socket_context(0, &listen_socket->s)->loop, 0, sizeof(struct us_socket_t) - sizeof(struct us_poll_t) + listen_socket->socket_ext_size);
-                        us_poll_init(accepted_p, client_fd, POLL_TYPE_SOCKET);
-                        us_poll_start(accepted_p, listen_socket->s.context->loop, LIBUS_SOCKET_READABLE);
+                        /* Todo: stop timer if any */
 
-                        struct us_socket_t *s = (struct us_socket_t *) accepted_p;
+                        do {
+                            struct us_poll_t *accepted_p = us_create_poll(us_socket_context(0, &listen_socket->s)->loop, 0, sizeof(struct us_socket_t) - sizeof(struct us_poll_t) + listen_socket->socket_ext_size);
+                            us_poll_init(accepted_p, client_fd, POLL_TYPE_SOCKET);
+                            us_poll_start(accepted_p, listen_socket->s.context->loop, LIBUS_SOCKET_READABLE);
 
-                        s->context = listen_socket->s.context;
+                            struct us_socket_t *s = (struct us_socket_t *) accepted_p;
 
-                        /* We always use nodelay */
-                        bsd_socket_nodelay(client_fd, 1);
+                            s->context = listen_socket->s.context;
 
-                        us_internal_socket_context_link(listen_socket->s.context, s);
+                            /* We always use nodelay */
+                            bsd_socket_nodelay(client_fd, 1);
 
-                        listen_socket->s.context->on_open(s, 0, bsd_addr_get_ip(&addr), bsd_addr_get_ip_length(&addr));
+                            us_internal_socket_context_link(listen_socket->s.context, s);
 
-                        /* Exit accept loop if listen socket was closed in on_open handler */
-                        if (us_socket_is_closed(0, &listen_socket->s)) {
-                            break;
-                        }
+	                        listen_socket->s.context->on_open(s, 0, bsd_addr_get_ip(&addr), bsd_addr_get_ip_length(&addr));
 
-                    } while ((client_fd = bsd_accept_socket(us_poll_fd(p), &addr)) != LIBUS_SOCKET_ERROR);
+	                        /* Exit accept loop if listen socket was closed in on_open handler */
+	                        if (us_socket_is_closed(0, &listen_socket->s)) {
+	                            break;
+	                        }
+
+                        } while ((client_fd = bsd_accept_socket(us_poll_fd(p), &addr)) != LIBUS_SOCKET_ERROR);
+                    }
                 }
             }
         }

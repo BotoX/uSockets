@@ -74,6 +74,7 @@ void us_internal_socket_context_link(struct us_socket_context_t *context, struct
     s->timeout = 0;
     s->next = context->head;
     s->prev = 0;
+    s->udp = 0;
     if (context->head) {
         context->head->prev = s;
     }
@@ -197,6 +198,9 @@ struct us_listen_socket_t *us_socket_context_listen(int ssl, struct us_socket_co
     ls->s.timeout = 0;
     ls->s.next = 0;
     us_internal_socket_context_link(context, &ls->s);
+
+    if(options & LIBUS_LISTEN_UDP)
+        ls->s.udp = 1;
 
     ls->socket_ext_size = socket_ext_size;
 
@@ -349,4 +353,8 @@ void *us_socket_context_ext(int ssl, struct us_socket_context_t *context) {
 #endif
 
     return context + 1;
+}
+
+void us_socket_context_on_udp_recv(struct us_socket_context_t *context, void (*on_udp_recv)(struct us_socket_t *s, char *data, int length, char *addr, int addr_length)) {
+    context->on_udp_recv = on_udp_recv;
 }

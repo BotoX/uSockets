@@ -176,6 +176,12 @@ int bsd_recv(LIBUS_SOCKET_DESCRIPTOR fd, void *buf, int length, int flags) {
     return recv(fd, buf, length, flags);
 }
 
+int bsd_recvfrom(LIBUS_SOCKET_DESCRIPTOR fd, void *buf, int length, int flags, struct bsd_addr_t *addr) {
+    addr->len = sizeof(addr->mem);
+    int ret = recvfrom(fd, buf, length, flags, (struct sockaddr *) addr, &addr->len);
+    return ret;
+}
+
 int bsd_send(LIBUS_SOCKET_DESCRIPTOR fd, const char *buf, int length, int msg_more) {
 
     // MSG_MORE (Linux), MSG_PARTIAL (Windows), TCP_NOPUSH (BSD)
@@ -198,6 +204,10 @@ int bsd_send(LIBUS_SOCKET_DESCRIPTOR fd, const char *buf, int length, int msg_mo
 #endif
 }
 
+int bsd_sendto(LIBUS_SOCKET_DESCRIPTOR fd, const char *buf, int length, int flags, struct bsd_addr_t *addr) {
+    return sendto(fd, buf, length, flags, (struct sockaddr *) addr, addr->len);
+}
+
 int bsd_would_block() {
 #ifdef _WIN32
     return WSAGetLastError() == WSAEWOULDBLOCK;
@@ -214,7 +224,10 @@ LIBUS_SOCKET_DESCRIPTOR bsd_create_listen_socket(const char *host, int port, int
 
     hints.ai_flags = AI_PASSIVE;
     hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+    if(options & LIBUS_LISTEN_UDP)
+        hints.ai_socktype = SOCK_DGRAM;
+    else
+        hints.ai_socktype = SOCK_STREAM;
 
     char port_string[16];
     snprintf(port_string, 16, "%d", port);
@@ -261,7 +274,7 @@ LIBUS_SOCKET_DESCRIPTOR bsd_create_listen_socket(const char *host, int port, int
     setsockopt(listenFd, IPPROTO_IPV6, IPV6_V6ONLY, (SETSOCKOPT_PTR_TYPE) &disabled, sizeof(disabled));
 #endif
 
-    if (bind(listenFd, listenAddr->ai_addr, (socklen_t) listenAddr->ai_addrlen) || listen(listenFd, 512)) {
+    if (bind(listenFd, listenAddr->ai_addr, (socklen_t) listenAddr->ai_addrlen) || (!(options & LIBUS_LISTEN_UDP) && listen(listenFd, 512))) {
         bsd_close_socket(listenFd);
         freeaddrinfo(result);
         return LIBUS_SOCKET_ERROR;

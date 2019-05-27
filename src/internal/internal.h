@@ -87,7 +87,8 @@ struct us_socket_t {
     alignas(LIBUS_EXT_ALIGNMENT) struct us_poll_t p;
     struct us_socket_context_t *context;
     struct us_socket_t *prev, *next;
-    unsigned short timeout;
+    unsigned short timeout : 15;
+    unsigned char udp : 1;
 };
 
 /* Internal callback types are polls just like sockets */
@@ -120,6 +121,7 @@ struct us_socket_context_t {
     struct us_socket_t *(*on_end)(struct us_socket_t *);
     struct us_socket_t *(*on_connect_error)(struct us_socket_t *, int code);
     int (*ignore_data)(struct us_socket_t *);
+    void (*on_udp_recv)(struct us_socket_t *s, char *data, int length, char *addr, int addr_length);
 };
 
 /* Internal SSL interface */

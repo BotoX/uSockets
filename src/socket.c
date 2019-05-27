@@ -52,7 +52,7 @@ struct us_socket_context_t *us_socket_context(int ssl, struct us_socket_t *s) {
 
 void us_socket_timeout(int ssl, struct us_socket_t *s, unsigned int seconds) {
     if (seconds) {
-        s->timeout = 0x8000 | (s->context->timestamp + (seconds >> 2));
+        s->timeout = 0x4000 | (s->context->timestamp + ((seconds + 3) >> 2));
     } else {
         s->timeout = 0;
     }
@@ -139,6 +139,16 @@ int us_socket_write(int ssl, struct us_socket_t *s, const char *data, int length
         s->context->loop->data.last_write_failed = 1;
         us_poll_change(&s->p, s->context->loop, LIBUS_SOCKET_READABLE | LIBUS_SOCKET_WRITABLE);
     }
+
+    return written < 0 ? 0 : written;
+}
+
+int us_socket_sendto(struct us_socket_t *s, const char *data, int length, char *addr, int addr_length) {
+    if (us_socket_is_closed(0, s) || !s->udp) {
+        return 0;
+    }
+
+    int written = bsd_sendto(us_poll_fd(&s->p), data, length, 0, (struct bsd_addr_t *)addr);
 
     return written < 0 ? 0 : written;
 }
